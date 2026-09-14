@@ -17,3 +17,8 @@ coverage/
 .idea/
 .vscode/
 
+
+# 器具清洗放行台 SQLite
+data/station.db
+data/station.db-wal
+data/station.db-shm

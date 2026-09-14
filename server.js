@@ -3,6 +3,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openDb, StationStore, DEFAULT_DB_PATH } from "./station/db.js";
+import { createStationServer } from "./station/app.js";
+import { seedDemo } from "./station/seed.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = join(__dirname, "data", "ink-stick-testing.json");
@@ -157,9 +160,23 @@ function page() {
 </html>`;
 }
 
+// 器具清洗放行台：独立的 SQLite 存储，单例、WAL、同步落盘；首启空库时写演示数据。
+const stationDbFile = process.env.STATION_DB || DEFAULT_DB_PATH;
+const stationStore = new StationStore(openDb(stationDbFile), { allowTestInjection: false });
+if (stationStore.listUtensils().length === 0 && process.env.STATION_NO_SEED !== "1") seedDemo(stationStore);
+const stationHandler = createStationServer(stationStore);
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    // 清洗放行台及其静态/API 路径优先处理，避免读取旧的 JSON 数据库
+    if (url.pathname === "/station" || url.pathname.startsWith("/station/")) {
+      if (url.pathname === "/station") {
+        res.writeHead(302, { Location: "/station/" });
+        return res.end();
+      }
+      return stationHandler(req, res, url.pathname);
+    }
     const db = await loadDb();
     if (req.method === "GET" && url.pathname === "/") return html(res, page());
     if (req.method === "GET" && url.pathname === "/api/items") return send(res, 200, db.items.map(summarize));
