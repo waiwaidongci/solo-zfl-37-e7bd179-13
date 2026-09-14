@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/"
+    "test": "node --test test/store.test.mjs test/http.test.mjs test/dom.test.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1"

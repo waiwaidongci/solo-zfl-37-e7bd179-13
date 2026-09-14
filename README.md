@@ -16,7 +16,7 @@ SQLite（WAL，`synchronous=FULL`）文件 `data/station.db`（已 gitignore）�
 测试：
 
 ```bash
-npm test      # node:test：29 项（数据层 + 真实子进程 HTTP + jsdom 页面）
+npm test      # node:test：28 项（数据层 16 + 真实子进程 HTTP 10 + jsdom 页面 2）
 ```
 
 ## 器具清洗放行台
@@ -74,10 +74,18 @@ npm test      # node:test：29 项（数据层 + 真实子进程 HTTP + jsdom �
 
 ### 测试用故障注入（默认关闭）
 
-以 `STATION_ALLOW_FAULT=1` 启动后，写请求可带头：
-`X-Fail-At: afterBatchInsert | afterUtensilUpdate | afterReleaseInsert`
+以 `STATION_ALLOW_FAULT=1` 启动后，写请求可带头 `X-Fail-At: <阶段>`
 模拟磁盘失败以验证整体回滚；`X-Now: <ms>` 注入时钟以构造到期场景。
 生产模式（不设该环境变量）会忽略这两个头。
+
+可用的阶段名与代码中的注入点一一对应（`station/db.js`）：
+
+| `X-Fail-At` 阶段 | 作用的写接口 | 注入时机 / 回滚效果 |
+|---|---|---|
+| `afterUtensilInsert` | `POST /utensils`（建档） | 插入器具行之后；建档整体回滚，编号不被占用 |
+| `afterBatchInsert` | `POST /batches`（登记清洗） | 插入批次行之后、改器具状态之前；批次不留、器具仍待清洗 |
+| `afterUtensilUpdate` | `POST /batches`（登记清洗） | 批次行与器具状态都写入之后、提交之前；整批回滚，无批次、无关联、状态不变 |
+| `afterReleaseUpdate` | `POST /batches/:id/release`（放行） | 器具置「可用」之后、批次置「已放行」之前；放行整体回滚，器具回到「待检验」，批次仍「待检验」 |
 
 ### 页面
 
